@@ -1,10 +1,12 @@
 import { param, deparam } from './deparam';
 import { ResizeMessage } from './measure';
+import { preferredThemeId, preferredTheme } from './preferred-theme';
 
-// slice access token from query string
+// slice session from query string
 const params = deparam(location.search.substr(1));
-const token = params.utterances;
-if (token) {
+const session = params.utterances;
+if (session) {
+  localStorage.setItem('utterances-session', session);
   delete params.utterances;
   let search = param(params);
   if (search.length) {
@@ -26,6 +28,9 @@ for (let i = 0; i < script.attributes.length; i++) {
   const attribute = script.attributes.item(i)!;
   attrs[attribute.name.replace(/^data-/, '')] = attribute.value; // permit using data-theme instead of theme.
 }
+if (attrs.theme === preferredThemeId) {
+  attrs.theme = preferredTheme;
+}
 
 // gather page attributes
 const canonicalLink = document.querySelector(`link[rel='canonical']`) as HTMLLinkElement;
@@ -35,9 +40,14 @@ attrs.pathname = location.pathname.length < 2 ? 'index' : location.pathname.subs
 attrs.title = document.title;
 const descriptionMeta = document.querySelector(`meta[name='description']`) as HTMLMetaElement;
 attrs.description = descriptionMeta ? descriptionMeta.content : '';
+// truncate descriptions that would trigger 414 "URI Too Long"
+const len = encodeURIComponent(attrs.description).length;
+if (len > 1000) {
+  attrs.description = attrs.description.substr(0, Math.floor(attrs.description.length * 1000 / len));
+}
 const ogtitleMeta = document.querySelector(`meta[property='og:title'],meta[name='og:title']`) as HTMLMetaElement;
 attrs['og:title'] = ogtitleMeta ? ogtitleMeta.content : '';
-attrs.token = token;
+attrs.session = session || localStorage.getItem('utterances-session') || '';
 
 // create the standard utterances styles and insert them at the beginning of the
 // <head> for easy overriding.
@@ -71,7 +81,7 @@ const url = `${utterancesOrigin}/utterances.html`;
 script.insertAdjacentHTML(
   'afterend',
   `<div class="utterances">
-    <iframe class="utterances-frame" title="Comments" scrolling="no" src="${url}?${param(attrs)}"></iframe>
+    <iframe class="utterances-frame" title="Comments" scrolling="no" src="${url}?${param(attrs)}" loading="lazy"></iframe>
   </div>`);
 const container = script.nextElementSibling as HTMLDivElement;
 script.parentElement!.removeChild(script);
